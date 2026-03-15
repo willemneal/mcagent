@@ -12,9 +12,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.install-test
-    environment:
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    env_file:
+      - .env
     volumes:
       - ..:/workspace:ro
       - ../docker:/docker:ro
