@@ -1,0 +1,7 @@
+target/
+.git/objects
+.git/modules
+docker/.env
+.mcagent/agents/
+*.swp
+*.swo

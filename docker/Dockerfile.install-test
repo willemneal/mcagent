@@ -1,0 +1,29 @@
+FROM ubuntu:24.04
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        sudo \
+        curl \
+        wget \
+        git \
+        build-essential \
+        ca-certificates \
+        gnupg \
+        software-properties-common && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash bitswell && \
+    echo "bitswell ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+USER bitswell
+
+RUN git config --global user.name "bitswell" && \
+    git config --global user.email "bitswell@users.noreply.github.com" && \
+    mkdir -p /home/bitswell/.npm-global && \
+    echo "prefix=/home/bitswell/.npm-global" > /home/bitswell/.npmrc
+
+ENV PATH="/home/bitswell/.npm-global/bin:${PATH}"
+
+WORKDIR /home/bitswell
+
+CMD ["bash"]
