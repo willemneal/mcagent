@@ -1,0 +1,24 @@
+FROM ubuntu:24.04
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        sudo \
+        curl \
+        wget \
+        git \
+        build-essential \
+        ca-certificates \
+        gnupg && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash bitswell && \
+    echo "bitswell ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+USER bitswell
+
+RUN git config --global user.name "bitswell" && \
+    git config --global user.email "bitswell@users.noreply.github.com"
+
+WORKDIR /home/bitswell
+
+CMD ["bash"]

@@ -1,0 +1,25 @@
+services:
+  mcagent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    env_file:
+      - .env
+    networks:
+      - mcagent-net
+
+  install-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.install-test
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ..:/workspace:ro
+      - ../docker:/docker:ro
+    networks:
+      - mcagent-net
+
+networks:
+  mcagent-net:
