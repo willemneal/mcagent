@@ -291,6 +291,21 @@ setup_github() {
         fi
     fi
 
+    # Token-based auth for CI/Docker (non-interactive)
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        info "GITHUB_TOKEN detected — using token-based auth"
+        # Unset env var temporarily — gh refuses --with-token when it's set
+        local _token="$GITHUB_TOKEN"
+        unset GITHUB_TOKEN
+        echo "$_token" | gh auth login --with-token 2>/dev/null || true
+        export GITHUB_TOKEN="$_token"
+        gh auth status &>/dev/null || { error "GitHub auth failed — check your token"; exit 1; }
+        GH_USER="$(gh api user -q .login 2>/dev/null || echo "user")"
+        success "Logged in as ${BOLD}$GH_USER${RESET} (via token)"
+        setup_ssh_key
+        return
+    fi
+
     printf "\n"
     if ask_yn "Do you already have a GitHub account?"; then
         info "Let's log you in."
