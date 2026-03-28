@@ -598,9 +598,7 @@ impl McAgentServer {
             return err("Tool name must be 1-64 characters".to_string());
         }
         if !params.name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
-            return err(format!(
-                "Tool name contains invalid character; only [a-zA-Z0-9_-] allowed"
-            ));
+            return err("Tool name contains invalid character; only [a-zA-Z0-9_-] allowed".to_string());
         }
 
         let state = self.state.read().await;
@@ -846,13 +844,18 @@ fn search_recursive(dir: &Path, base: &Path, pattern: &str, matches: &mut Vec<St
         if path.file_name().map_or(false, |n| n.to_string_lossy().starts_with('.')) {
             continue;
         }
-        // Skip symlinks that resolve outside the sandbox
-        if let Ok(canonical) = path.canonicalize() {
-            if let Ok(canonical_base) = base.canonicalize() {
-                if !canonical.starts_with(&canonical_base) {
-                    continue;
-                }
-            }
+        // Mandatory sandbox check: skip entries that fail to canonicalize
+        // or resolve outside the sandbox (prevents symlink-based escape)
+        let canonical = match path.canonicalize() {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let canonical_base = match base.canonicalize() {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        if !canonical.starts_with(&canonical_base) {
+            continue;
         }
         if path.is_dir() {
             search_recursive(&path, base, pattern, matches);
