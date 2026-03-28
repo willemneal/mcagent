@@ -390,12 +390,34 @@ impl McAgentServer {
         };
 
         let file_path = agent.working_dir.join(&params.path);
-        // For write: ensure parent dirs exist first, then canonicalize parent
+
+        // Check for path traversal BEFORE creating any directories.
+        // Normalize the path logically (resolve ".." without filesystem access)
+        // so we never create directories outside the sandbox.
+        let canonical_working = match agent.working_dir.canonicalize() {
+            Ok(p) => p,
+            Err(e) => return err(format!("Cannot resolve working directory: {e}")),
+        };
+        let mut normalized = canonical_working.clone();
+        for component in std::path::Path::new(&params.path).components() {
+            match component {
+                std::path::Component::ParentDir => { normalized.pop(); }
+                std::path::Component::Normal(c) => normalized.push(c),
+                std::path::Component::CurDir => {}
+                _ => {}
+            }
+        }
+        if !normalized.starts_with(&canonical_working) {
+            return err("Path traversal not allowed: path escapes sandbox".to_string());
+        }
+
+        // Now safe to create parent directories within the sandbox
         if let Some(parent) = file_path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
                 return err(format!("Failed to create directory: {e}"));
             }
         }
+        // Final canonicalized check (catches symlink-based escape after dir creation)
         if let Err(msg) = check_sandbox_path_for_write(&file_path, &agent.working_dir) {
             return err(msg);
         }
@@ -803,13 +825,23 @@ impl McAgentServer {
     }
 }
 
+/// Maximum number of search results to prevent unbounded output.
+const MAX_SEARCH_RESULTS: usize = 1000;
+
 fn search_recursive(dir: &Path, base: &Path, pattern: &str, matches: &mut Vec<String>) {
+    if matches.len() >= MAX_SEARCH_RESULTS {
+        return;
+    }
+
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
     };
 
     for entry in entries.flatten() {
+        if matches.len() >= MAX_SEARCH_RESULTS {
+            return;
+        }
         let path = entry.path();
         if path.file_name().map_or(false, |n| n.to_string_lossy().starts_with('.')) {
             continue;
@@ -827,6 +859,9 @@ fn search_recursive(dir: &Path, base: &Path, pattern: &str, matches: &mut Vec<St
         } else if path.is_file() {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 for (i, line) in content.lines().enumerate() {
+                    if matches.len() >= MAX_SEARCH_RESULTS {
+                        return;
+                    }
                     if line.contains(pattern) {
                         let rel = path.strip_prefix(base).unwrap_or(&path);
                         matches.push(format!("{}:{}: {}", rel.display(), i + 1, line));
